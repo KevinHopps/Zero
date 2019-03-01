@@ -1,4 +1,5 @@
 #include <cstdint>
+#include <fstream>
 #include <iostream>
 #include <sstream>
 #include <vector>
@@ -34,28 +35,32 @@ std::string shift(Args& args)
 
 void zero(const std::string& path)
 {
-    FILE* fp = fopen(path.c_str(), "r+");
-    if (fp == nullptr)
+    auto flags = std::ios::in | std::ios::out | std::ios::binary;
+    std::fstream file(path, flags);
+    if (!file)
         THROW(path << ": cannot open");
-    std::vector<std::uint8_t> buf(4096);
-    std::vector<std::uint8_t> zero(buf.size());
-    memset(zero.data(), 0, zero.size());
-    off_t size = 0;
-    size_t got = 0;
-    while ((got = fread(buf.data(), 1, buf.size(), fp)) > 0)
+    std::vector<char> buf(4096);
+    std::vector<char> zero(buf.size());
+    std::memset(zero.data(), 0, zero.size());
+    std::ios::pos_type offs = 0;
+    auto read = [](std::fstream& file, char* buf, size_t want)
     {
-        if (fseek(fp, size, SEEK_SET) != 0)
-            THROW(path << ": fseek failure");
-        if (ftell(fp) != size)
-            THROW(path << ": unexpected offset after fseek");
-        
-        size_t sent = fwrite(zero.data(), 1, got, fp);
-        if (sent != got)
-            THROW(path << ": read " << got << " but only rewrote " << sent);
-        
-        size += sent;
-        
-        if (ftell(fp) != size)
-            THROW(path << ": unexpected offset after fwrite");
+        size_t got = want;
+        if (!file.read(buf, want))
+        {
+            got = file.gcount();
+            file.clear();
+        }
+        return got;
+    };
+    size_t got = 0;
+    while ((got = read(file, buf.data(), buf.size())) > 0)
+    {
+        if (!file.seekg(offs))
+            THROW(path << ": seek failure");
+        if (!file.write(zero.data(), got))
+            THROW(path << ": write failure");
+        file.flush();
+        offs += got;
     }
 }
