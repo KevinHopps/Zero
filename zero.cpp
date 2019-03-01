@@ -1,5 +1,7 @@
+#include <cstdint>
 #include <iostream>
 #include <sstream>
+#include <vector>
 #include "zero.h"
 
 #define THROW(stuff) do { std::ostringstream oss; oss << stuff; throw std::runtime_error(oss.str()); } while (false)
@@ -35,19 +37,19 @@ void zero(const std::string& path)
     FILE* fp = fopen(path.c_str(), "r+");
     if (fp == nullptr)
         THROW(path << ": cannot open");
-    char buf[4096];
-    char zero[sizeof(buf)];
-    memset(zero, 0, sizeof(zero));
+    std::vector<std::uint8_t> buf(4096);
+    std::vector<std::uint8_t> zero(buf.size());
+    memset(zero.data(), 0, zero.size());
     off_t size = 0;
     size_t got = 0;
-    while ((got = fread(buf, 1, sizeof(buf), fp)) > 0)
+    while ((got = fread(buf.data(), 1, buf.size(), fp)) > 0)
     {
         if (fseek(fp, size, SEEK_SET) != 0)
             THROW(path << ": fseek failure");
         if (ftell(fp) != size)
             THROW(path << ": unexpected offset after fseek");
         
-        size_t sent = fwrite(zero, 1, got, fp);
+        size_t sent = fwrite(zero.data(), 1, got, fp);
         if (sent != got)
             THROW(path << ": read " << got << " but only rewrote " << sent);
         
