@@ -1,4 +1,5 @@
 #include <cstdint>
+#include <experimental/filesystem>
 #include <fstream>
 #include <iostream>
 #include <sstream>
@@ -10,9 +11,45 @@
 std::string shift(Args& args);
 void zero(const std::string& path);
 
+bool removeAfterZero;
+std::string cmdName;
+
+std::string usage()
+{
+	std::ostringstream oss;
+	oss << "usage: " << cmdName << " [--remove|--rm|-r] file...";
+	return oss.str();
+}
+
+namespace
+{
+	void removeFile(const std::string& name)
+	{
+		std::experimental::filesystem::path path(name);
+		std::experimental::filesystem::remove(path);
+	}
+}
+
 void zero(Args args)
 {
-    std::string cmdName = shift(args);
+    cmdName = shift(args);
+	while (args.size() > 0 && args.front().c_str()[0] == '-')
+	{
+		std::string arg = shift(args);
+		if (arg == "--remove" || arg == "--rm" || arg == "-r")
+			removeAfterZero = true;
+		else
+		{
+			std::string msg = usage();
+			if (arg == "--help" || arg == "-h" | arg == "-?")
+			{
+				std::cerr << msg << std::endl;
+				return;
+			}
+			throw std::invalid_argument(usage());
+		}
+	}
+
     bool printNames = args.size() > 1;
     for (const auto& name : args)
     {
@@ -20,6 +57,11 @@ void zero(Args args)
             std::cout << name << std::flush;
         
         zero(name);
+
+		if (removeAfterZero)
+		{
+			removeFile(name);
+		}
         
         if (printNames)
             std::cout << '\n';
